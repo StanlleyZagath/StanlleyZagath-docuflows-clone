@@ -1,0 +1,146 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Troque provider para "postgresql" e a DATABASE_URL para usar Postgres.
+
+model Organization {
+  id          String       @id @default(cuid())
+  name        String
+  createdAt   DateTime     @default(now())
+  users       User[]
+  departments Department[]
+  documents   Document[]
+  templates   Template[]
+  paths       Path[]
+}
+
+model Department {
+  id        String       @id @default(cuid())
+  name      String
+  orgId     String
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  users     User[]
+  documents Document[]
+  paths     Path[]
+
+  @@unique([orgId, name])
+}
+
+// role: OWNER | ADMIN | EDITOR | MEMBER
+model User {
+  id           String        @id @default(cuid())
+  email        String        @unique
+  name         String
+  passwordHash String
+  role         String        @default("MEMBER")
+  orgId        String
+  org          Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  departmentId String?
+  department   Department?   @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  createdAt    DateTime      @default(now())
+  documents    Document[]
+  reads        DocumentRead[]
+  attempts     QuizAttempt[]
+  certificates Certificate[]
+}
+
+// status: DRAFT | PUBLISHED
+model Document {
+  id           String         @id @default(cuid())
+  title        String
+  content      String
+  status       String         @default("DRAFT")
+  version      Int            @default(1)
+  orgId        String
+  org          Organization   @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  departmentId String?
+  department   Department?    @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  authorId     String
+  author       User           @relation(fields: [authorId], references: [id])
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  reads        DocumentRead[]
+  questions    Question[]
+  pathItems    PathItem[]
+}
+
+model DocumentRead {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  version    Int
+  readAt     DateTime @default(now())
+
+  @@unique([userId, documentId])
+}
+
+model Template {
+  id      String       @id @default(cuid())
+  title   String
+  content String
+  orgId   String
+  org     Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+}
+
+// options: JSON array de strings
+model Question {
+  id         String   @id @default(cuid())
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  text       String
+  options    String
+  correct    Int
+}
+
+model QuizAttempt {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  documentId String
+  score      Int
+  passed     Boolean
+  createdAt  DateTime @default(now())
+}
+
+model Path {
+  id           String        @id @default(cuid())
+  title        String
+  description  String        @default("")
+  orgId        String
+  org          Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  departmentId String?
+  department   Department?   @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  items        PathItem[]
+  certificates Certificate[]
+}
+
+model PathItem {
+  id         String   @id @default(cuid())
+  pathId     String
+  path       Path     @relation(fields: [pathId], references: [id], onDelete: Cascade)
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  position   Int
+
+  @@unique([pathId, documentId])
+}
+
+model Certificate {
+  id       String   @id @default(cuid())
+  code     String   @unique
+  userId   String
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pathId   String
+  path     Path     @relation(fields: [pathId], references: [id], onDelete: Cascade)
+  issuedAt DateTime @default(now())
+
+  @@unique([userId, pathId])
+}
